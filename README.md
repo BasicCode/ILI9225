@@ -7,7 +7,7 @@ to be easily ported to other models.<br>
 
 ## Installation
 The PIC communicates with this controller over SPI and should be initialised by the **main()** code outside of the ILI9225.c library (because each chip is slightly different).<br>
-Set the **SPIBUFF**, and **SPIIDLE** registers in the ILI9225.h file to match your particular setup.
+Set the **SPIBUFF**, and **SPIIDLE** registers in the ILI9225.h file to match your particular chip. Change the **CSX**, **CMD**, and **RESX** pins in the ILI9225.h file to match your design.
 
 ## Usage
 This library only provides a few basic functionality. Afeter setting up the SPI module, initialise the LCD controller using:
