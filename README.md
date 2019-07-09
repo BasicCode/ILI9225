@@ -19,5 +19,9 @@ It is then useful to clear the screen manually with:
 ```
 fill_rectangle(0, 0, WIDTH, HEIGHT, COLOR_BLACK);
 ```
+You can set the display driver to draw to the display in either portrait or landscape orientation by changing the **LANDSCAPE** flag in the header file:
+```
+#define LANDSCAPE 1 //1 = Landscape, 0 = Portrait
+```
 <br><br>
 Feel free to add functions and modify as required. Licensed under GNUv3.
