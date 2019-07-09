@@ -29,24 +29,12 @@
  * 40 kHz clock compared to 2 MHz clock with hardware SPI).
  */
 void spi_write(unsigned char data) {
-    if(USE_HW_SPI) {
-        //Use the on-bard hardware SPI registers
-        //TODO: Update these buffer labels according to your device.
-        
-        //Write data to SSPBUFF
-        SPIBUF = data;
-        //Wait for transmission to finish
-        while(!(SPIIDLE));
-    } else {
-        //Otherwise just bit bang this through
-        for(int i = 7; i >= 0; i--) {
-            //asm("NOP"); //May or may not be needed for timing
-            SCK = 0;
-            SDO = (data >> i) & 0x01;
-            //asm("NOP");
-            SCK = 1; //Data sampled on rising clock edge.
-        }
-    }
+    //TODO: Update these buffer labels according to your device.
+    
+    //Write data to SSPBUFF
+    SPIBUF = data;
+    //Wait for transmission to finish
+    while(!(SPIIDLE));
 }
 
 /*
@@ -85,6 +73,24 @@ void lcd_write_register(unsigned int reg, unsigned int data) {
     lcd_write_command(reg & 0xFF); //regL
     lcd_write_data(data >> 8); //dataH
     lcd_write_data(data & 0xFF); //dataL
+}
+
+/*
+ * Swaps two 16-bit integers
+ */
+void swap_int(int *num1, int *num2) {
+    int temp = *num2;
+    *num2 = *num1;
+    *num1 = temp;
+}
+
+/*
+ * Swaps two 8-bit integers
+ */
+void swap_char(char *num1, char *num2) {
+    char temp = *num2;
+    *num2 = *num1;
+    *num1 = temp;
 }
 
 /*
@@ -127,6 +133,7 @@ void lcd_init() {
     delay_ms(500);
     
     lcd_init_command_list();
+    
 }
 
 /**
@@ -209,6 +216,12 @@ void lcd_init_command_list(void)
  * Colour.
  */
 void draw_pixel(char x, char y, unsigned int colour) {
+    //If we are in landscape view then translate -90 degrees
+    if(LANDSCAPE) {
+        swap_char(&x, &y);
+        y = WIDTH - y;
+    }
+    
     //Set the x, y position that we want to write to
     set_draw_window(x, y, x+1, y+1);
     lcd_write_data(colour >> 8);
@@ -219,6 +232,15 @@ void draw_pixel(char x, char y, unsigned int colour) {
  * Fills a rectangle with a given colour
  */
 void fill_rectangle(char x1, char y1, char x2, char y2, unsigned int colour) {
+    //If landscape view then translate everyting -90 degrees
+    if(LANDSCAPE) {
+        swap_char(&x1, &y1);
+        swap_char(&x2, &y2);
+        y1 = WIDTH - y1;
+        y2 = WIDTH - y2;
+        swap_char(&y2, &y1);
+    }
+    
     //Split the colour int in to two bytes
     unsigned char colour_high = colour >> 8;
     unsigned char colour_low = colour & 0xFF;
@@ -248,6 +270,7 @@ void fill_rectangle(char x1, char y1, char x2, char y2, unsigned int colour) {
  * to the display.
  */
 void set_draw_window(char x1, char y1, char x2, char y2) {
+
     lcd_write_register(ILI9225_HORIZONTAL_WINDOW_ADDR1,x2);
     lcd_write_register(ILI9225_HORIZONTAL_WINDOW_ADDR2,x1);
 
@@ -265,43 +288,41 @@ void set_draw_window(char x1, char y1, char x2, char y2) {
  * Draws a single char to the screen.
  * Called by the various string writing functions like print().
  */
-void draw_char(char x, char y, char c, unsigned int colour, char size){
+void draw_char(char x, char y, char c, unsigned int colour, char size) {
     int i, j;
     char line;
-    unsigned int font_index = (c - 32) * 5;
+    unsigned int font_index = (c - 32);
     
     //Get the line of pixels from the font file
-    for(i=0; i<5; i++ ) {
-        //We have to pick from a different font file depending on the character.
-        //See note in Font[] definition.
-        if(c < 'T')
-            line = Font1[font_index + i];
-        else
-            line = Font2[((c - 'S') * 5) + i];
+    for(i=0; i<13; i++ ) {
+
+        line = FontLarge[font_index][12 - i];
         
         //Draw the pixels to screen
-        for(j=0; j<7; j++) {
-            if(line & 0x01) {
-                if(size == 1)
+        for(j=0; j<8; j++) {
+            if(line & (0x01 << j)) {
+                if(size == 1) {
                     //If we are just doing the smallest size font then do a single pixel each
-                    draw_pixel(x+i, y+j, colour);
-                else
-                    //Otherwise do a small box to represent each pixel
-                    fill_rectangle(x+(i*size), y+(j*size), x+(i*size)+size, y+(j*size)+size, colour);
+                    draw_pixel(x+(8-j), y+i, colour);
+                }
+                else {
+                    // do a small box to represent each pixel
+                    fill_rectangle(x+((8-j)*size), y+((i)*size), x+((8-j)*size)+size, y+((i)*size)+size, colour);
+                }
             }
-            
-            line >>= 1; //Next row of pixels in the font
         }
     }
 }
+
 
 /*
  * Writes a string to the display as an array of chars at position x, y with 
  * a given colour and size.
  */
 void draw_string(char x, char y, unsigned int colour, char size, char *str) {
+    
     //Work out the size of each character
-    int char_width = size * 6;
+    int char_width = size * 9;
     //Iterate through each character in the string
     int counter = 0;
     while(str[counter] != '\0') {
@@ -322,6 +343,7 @@ void draw_string(char x, char y, unsigned int colour, char size, char *str) {
  * method. But I didn't need the speed, and it simplified the code a lot.
  */
 void draw_bitmap(int x, int y, int scale, unsigned int *bmp) {
+    
     int width = bmp[0];
     int height = bmp[1];
     unsigned int this_byte;
