@@ -214,6 +214,8 @@ void lcd_init_command_list(void)
 /*
  * Draws a single pixel to the LCD at position X, Y, with 
  * Colour.
+ * 
+ * 28 bytes per pixel. Use it wisely.
  */
 void draw_pixel(char x, char y, unsigned int colour) {
     //If we are in landscape view then translate -90 degrees
@@ -295,6 +297,10 @@ void set_draw_window(char x1, char y1, char x2, char y2) {
 /*
  * Draws a single char to the screen.
  * Called by the various string writing functions like print().
+ * 
+ * NOTE:
+ * This sends approx. 800 bytes per char to the LCD, but it does preserver
+ * the background image. Use the draw_fast_char() function where possible.
  */
 void draw_char(char x, char y, char c, unsigned int colour, char size) {
     int i, j;
@@ -322,6 +328,66 @@ void draw_char(char x, char y, char c, unsigned int colour, char size) {
     }
 }
 
+/*
+ * Draws a char to the screen using a constant stream of pixel data whic his faster
+ * than drawing individual pixels.
+ * This will draw over any background image though.
+ * 
+ * NOTE: This sends 130 bytes for a regular sized char
+ */
+void draw_fast_char(char x, char y, char c, unsigned int colour, unsigned int bg_colour) {
+    char line;
+    char width = 8;
+    char height = 13;
+    unsigned int font_index = (c - 32);
+    unsigned int this_px = bg_colour;
+    
+    //Adjust for portrait / landscape orientation
+    if(LANDSCAPE) {
+        swap_char(&x, &y);
+        swap_char(&width, &height);
+        y = WIDTH - y - height; //I don't know why this offset works. :/
+    }
+    
+    //Set the drawing region
+    set_draw_window(x, y, x + width - 1, y + height);
+    
+    //We will do the SPI write manually here for speed
+    //CSX low to begin data
+    CSX = 0;
+    
+    //Get the line of pixels from the font file
+    for(int i=0; i < height; i++ ) {
+        line = FontLarge[font_index][12 - i];
+        
+        //Draw the pixels to screen
+        for(int j = width-1; j >= 0; j--) {
+            //Default pixel colour is the background colour, unless changed below
+            this_px = bg_colour;
+            
+            if(LANDSCAPE) {
+                line = FontLarge[font_index][j];
+                if((line >> i) & 0x01)
+                    this_px = colour;
+            } else {
+                //Calculate the correct pixel colour
+                if((line >> (j)) & 0x01)
+                    this_px = colour;
+            }
+            
+            
+            
+            //Draw this pixel
+            lcd_write_data(this_px >> 8);
+            lcd_write_data(this_px & 0xFF);
+        }
+    }
+    
+    
+    //Return CSX to high
+    CSX = 1;
+}
+
 
 /*
  * Writes a string to the display as an array of chars at position x, y with 
@@ -338,6 +404,23 @@ void draw_string(char x, char y, unsigned int colour, char size, char *str) {
         int char_pos = x + (counter * char_width);
         //Write char to the display
         draw_char(char_pos, y, str[counter], colour, size);
+        //Next character
+        counter++;
+    }
+}
+
+/*
+ * Draws a string using the draw_fast_char() function.
+ * This will not preserve any background image and so a custom background
+ * colour should be provided.
+ * NOTE: Can only be the regular sized font. No scaling.
+ */
+void draw_fast_string(char x, char y, unsigned int colour, unsigned int bg_colour, char *str) {
+    //Iterate through each character in the string
+    int counter = 0;
+    while(str[counter] != '\0') {
+        //Write char to the display
+        draw_fast_char(x + (counter * 9), y, str[counter], colour, bg_colour);
         //Next character
         counter++;
     }
@@ -384,8 +467,8 @@ void draw_bitmap(int x1, int y1, int scale, unsigned int *bmp) {
                 //Skip the first two bytes which are the length:width values
                 
                 if((i == 0) && (j < 2)) {
-                    //lcd_write_data(0x00);
-                    //lcd_write_data(0x00);
+                    lcd_write_data(0x00);
+                    lcd_write_data(0x00);
                     break;
                 }
 

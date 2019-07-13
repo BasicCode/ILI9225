@@ -240,7 +240,9 @@ extern "C" {
     void set_draw_window(char row_start, char row_end, char col_start, char col_end);
     void fill_rectangle(char x1, char y1, char x2, char y2, unsigned int colour);
     void draw_char(char x, char y, char c, unsigned int colour, char size);
+    void draw_fast_char(char x, char y, char c, unsigned int colour, unsigned int bg_colour);
     void draw_string(char x, char y, unsigned int colour, char size, char *str);
+    void draw_fast_string(char x, char y, unsigned int colour, unsigned int bg_colour, char *str);
     void draw_line(char x1, char y1, char x2, char y2, unsigned int colour);
     void draw_bitmap(int x, int y, int scale, unsigned int *bmp);
 
