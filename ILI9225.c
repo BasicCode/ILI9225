@@ -431,65 +431,55 @@ void draw_fast_string(char x, char y, unsigned int colour, unsigned int bg_colou
  * 
  * So the scaling is done strangely here because writing individual pixels 
  * has an overhead of 26 bytes each.
- * 
- * TODO: Fix the bit where it's overrunning the array
  */
 void draw_bitmap(int x1, int y1, int scale, unsigned int *bmp) {
-    int width = bmp[0];
-    int height = bmp[1];
-    unsigned int this_byte;
-    int x2 = x1 + (width * scale);
-    int y2 = y1 + (height * scale);
+	int width = bmp[0];
+	int height = bmp[1];
+	unsigned int this_byte;
+	int x2 = x1 + (width * scale);
+	int y2 = y1 + (height * scale);
 
-    //If landscape view then translate everyting -90 degrees
-    if(LANDSCAPE) {
-        swap_char(&x1, &y1);
-        swap_char(&x2, &y2);
-        y1 = WIDTH - y1;
-        y2 = WIDTH - y2;
-        swap_char(&y2, &y1);
-        swap_int(&width, &height);
-    }
-    
-    
-    //Set the drawing region
-    set_draw_window(x1, y1, x2 + scale - 1, y2);
-    
-    //We will do the SPI write manually here for speed
-    //CSX low to begin data
-    CSX = 0;
-    
-    //Write colour to each pixel
-    for(int i = 0; i < height ; i++) {
-        //this loop does the vertical axis scaling (two of each line))
-        for(int sv = 0; sv < scale; sv++) {
-            for(int j = 0; j <= width; j++) {
-                //Skip the first two bytes which are the length:width values
-                
-                if((i == 0) && (j < 2)) {
-                    lcd_write_data(0x00);
-                    lcd_write_data(0x00);
-                    break;
-                }
+	//If landscape view then translate everyting -90 degrees
+	if (LANDSCAPE) {
+		swap_char(&x1, &y1);
+		swap_char(&x2, &y2);
+		y1 = WIDTH - y1;
+		y2 = WIDTH - y2;
+		swap_char(&y2, &y1);
+		swap_int(&width, &height);
+	}
 
-                //Choose which byte to display depending on the screen orientation
-                if(LANDSCAPE)
-                    this_byte = bmp[(height * (j+1)) - i];
-                else
-                    this_byte = bmp[(width * (i)) + j];
 
-                //And this loop does the horizontal axis scale (two of each pixels on the line))
-                for(int sh = 0; sh < scale; sh++) {
-                    //Draw this pixel
-                    lcd_write_data(this_byte >> 8);
-                    lcd_write_data(this_byte & 0xFF);
-                }
-            }
-        }
-    }
-    
-    //Return CSX to high
-    CSX = 1;
-    
+	//Set the drawing region
+	set_draw_window(x1, y1, x2 + scale - 1, y2);
+
+	//We will do the SPI write manually here for speed
+	//CSX low to begin data
+	CSX = 0;
+
+	//Write colour to each pixel
+	for (int i = 0; i < height; i++) {
+		//this loop does the vertical axis scaling (two of each line))
+		for (int sv = 0; sv < scale; sv++) {
+			for (int j = 0; j <= width; j++) {
+				//Choose which byte to display depending on the screen orientation
+				//NOTE: We add a byte because of the first two bytes being dimension data in the array
+				if (LANDSCAPE)
+					this_byte = bmp[(height * (j + 1)) - i + 1];
+				else
+					this_byte = bmp[(width * (i)) + j + 1];
+
+				//And this loop does the horizontal axis scale (two of each pixels on the line))
+				for (int sh = 0; sh < scale; sh++) {
+					//Draw this pixel
+					lcd_write_data(this_byte >> 8);
+					lcd_write_data(this_byte & 0xFF);
+				}
+			}
+		}
+	}
+
+	//Return CSX to high
+	CSX = 1;
 
 }
